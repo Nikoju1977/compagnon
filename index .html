@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>DAPHNÉE OMNI - PLATINUM V12</title>
+
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+
+    <style>
+        :root { --neon: #00f2ff; --bg: #000; --panel: #111; --ok: #00e676; --err: #ff1744; --warn: #ffd700; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: white; font-family: -apple-system, system-ui, sans-serif; margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        .shell { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 500px; margin: 0 auto; background: #0a0a0a; position: relative; border-left: 1px solid #222; border-right: 1px solid #222; }
+        header { padding: 15px 20px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.8); z-index: 100; }
+        .logo { font-weight: 900; color: var(--neon); letter-spacing: 2px; }
+        .led { width: 10px; height: 10px; border-radius: 50%; background: #222; transition: 0.3s; }
+        .led.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+        .led.busy { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+        .viewport { flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 100px; }
+        .view { display: none; } .view.active { display: block; }
+
+        .card { background: var(--panel); border-radius: 24px; padding: 20px; text-align: center; margin-bottom: 15px; border: 1px solid #222; }
+        .val { font-size: 5rem; font-weight: 800; margin: 5px 0; text-shadow: 0 0 20px rgba(0,242,255,0.2); }
+        
+        .ai-msg { background: #1a1a1a; padding: 15px; border-radius: 15px; border-left: 4px solid var(--neon); font-size: 0.9rem; margin-bottom: 15px; line-height: 1.4; }
+        #cam-box { width: 100%; height: 260px; background: #000; border-radius: 20px; border: 2px solid var(--neon); display: none; margin-bottom: 15px; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .btn { height: 60px; background: #222; border: 1px solid #333; border-radius: 15px; color: var(--neon); font-size: 1.6rem; cursor: pointer; }
+        .btn:active { background: var(--neon); color: #000; }
+        .btn:disabled { opacity: 0.1; }
+
+        #kbd-zone { display: none; margin-bottom: 10px; }
+        input { width: 100%; padding: 15px; background: #000; border: 1px solid var(--neon); color: white; border-radius: 12px; font-size: 1rem; }
+
+        nav { height: 80px; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #222; background: #000; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-btn { background: none; border: none; color: #444; font-size: 1.5rem; }
+        .nav-btn.active { color: var(--neon); }
+
+        #boot { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spin { width: 40px; height: 40px; border: 3px solid #111; border-top-color: var(--neon); border-radius: 50%; animation: s 1s infinite linear; }
+        @keyframes s { to {transform:rotate(360deg);} }
+    </style>
+</head>
+<body>
+
+    <div id="boot">
+        <div class="spin"></div>
+        <div style="color:var(--neon); margin-top:20px; font-weight:bold;">CONTRÔLE FINAL...</div>
+    </div>
+
+    <div class="shell">
+        <header>
+            <div class="logo">DAPHNÉE OMNI</div>
+            <div style="display:flex; gap:10px;"><div id="st-ai" class="led"></div><div id="st-bt" class="led"></div></div>
+        </header>
+
+        <div class="viewport">
+            <div id="v-home" class="view active">
+                <div class="card">
+                    <div style="height:120px"><canvas id="chart"></canvas></div>
+                    <div class="val" id="disp-gly">--</div>
+                    <div style="color:var(--neon); font-weight:bold;">BOLUS: <span id="disp-bolus">0.0</span> U</div>
+                </div>
+                <div id="cam-box"></div>
+                <div id="kbd-zone"><input type="text" id="kbd-in" placeholder="Dites quelque chose..." onkeypress="core.checkEnter(event)"></div>
+                <div class="ai-msg" id="ai-msg">Daphnée Platinum prête.</div>
+                <div class="grid">
+                    <button class="btn" id="b-scan" onclick="core.scan()" disabled>📸</button>
+                    <button class="btn" id="b-mic" onclick="core.voice()" disabled>🎤</button>
+                    <button class="btn" id="b-eye" onclick="core.vision()" disabled>👁️</button>
+                    <button class="btn" id="b-kbd" onclick="core.toggleKbd()" disabled>⌨️</button>
+                </div>
+                <button style="width:100%; padding:15px; background:transparent; border:1px solid var(--neon); color:var(--neon); border-radius:12px; font-weight:bold;" onclick="core.connectBT()">🔗 CONNEXION POMPE</button>
+            </div>
+
+            <div id="v-logs" class="view">
+                <h3 style="color:var(--neon)">HISTORIQUE</h3>
+                <div id="log-list"></div>
+            </div>
+
+            <div id="v-set" class="view">
+                <h3 style="color:var(--neon)">RÉGLAGES</h3>
+                <input type="password" id="c-key" placeholder="Clé API Mistral">
+                <input type="number" id="c-isf" placeholder="Sensibilité" value="50">
+                <input type="number" id="c-ratio" placeholder="Ratio" value="10">
+                <button style="width:100%; padding:15px; background:var(--neon); color:#000; border:none; border-radius:12px; font-weight:bold;" onclick="core.saveConfig()">SAUVEGARDER</button>
+            </div>
+        </div>
+
+        <nav>
+            <button class="nav-btn active" onclick="core.nav('home', this)">📊</button>
+            <button class="nav-btn" onclick="core.nav('logs', this)">📅</button>
+            <button class="nav-btn" onclick="core.nav('set', this)">⚙️</button>
+        </nav>
+    </div>
+
+    <py-script>
+    from pyscript import document, window
+    from js import fetch, JSON, localStorage
+    import json
+    import asyncio
+    import re
+
+    async def py_analyze(text, img=None):
+        key = document.getElementById("c-key").value.strip()
+        if not key:
+            window.core.toast("Clé API manquante")
+            return
+        
+        box = document.getElementById("ai-msg")
+        box.innerText = "Analyse..."
+        document.getElementById("st-ai").className = "led busy"
+
+        prompt = "Expert Diabète. Réponds JSON STRICT: {'msg': 'phrase courte', 'carbs': int}. Pas de blabla."
+        try:
+            if img:
+                model = "pixtral-12b-2409"
+                msgs = [{"role": "user", "content": [{"type":"text","text":prompt}, {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img}"}}]}]
+            else:
+                model = "mistral-tiny"
+                msgs = [{"role": "system", "content": prompt}, {"role": "user", "content": text}]
+
+            r = await fetch("https://api.mistral.ai/v1/chat/completions", method="POST", 
+                headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},
+                body=json.dumps({"model":model, "messages":msgs, "temperature":0.1}))
+            
+            d = await r.json()
+            full = d['choices'][0]['message']['content']
+            
+            # Extraction robuste du JSON
+            match = re.search(r"\{.*?\}", full.replace("\n", ""))
+            res = json.loads(match.group(0))
+
+            box.innerText = res.get('msg')
+            document.getElementById("st-ai").className = "led on"
+            window.core.calculate(res.get('carbs', 0), res.get('msg'))
+        except:
+            box.innerText = "Erreur IA."
+            document.getElementById("st-ai").className = "led"
+
+    window.py_ai = py_analyze
+    window.core.engineReady()
+    </py-script>
+
+    <script>
+        const core = {
+            state: { gly: 110, history: [], chart: null },
+            init: function() {
+                const ls = localStorage;
+                if(ls.getItem("isf")) document.getElementById("c-isf").value = ls.getItem("isf");
+                if(ls.getItem("ratio")) document.getElementById("c-ratio").value = ls.getItem("ratio");
+                if(ls.getItem("mk")) {
+                    document.getElementById("c-key").value = ls.getItem("mk");
+                    document.getElementById("st-ai").className = "led on";
+                }
+                this.initChart();
+            },
+            engineReady: function() {
+                setTimeout(() => {
+                    document.getElementById("boot").style.display = "none";
+                    ['b-scan','b-mic','b-eye','b-kbd'].forEach(id => document.getElementById(id).disabled = false);
+                }, 1000);
+            },
+            nav: function(v, b) {
+                document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+                document.getElementById('v-' + v).classList.add('active');
+                document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+            },
+            calculate: function(carbs, msg) {
+                const isf = parseFloat(document.getElementById("c-isf").value) || 50;
+                const ratio = parseFloat(document.getElementById("c-ratio").value) || 10;
+                const bolus = Math.max(0, (this.state.gly - 100)/isf + (carbs/ratio)).toFixed(1);
+                document.getElementById("disp-bolus").innerText = bolus;
+                if(window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                    const u = new SpeechSynthesisUtterance(msg);
+                    u.lang = 'fr-FR'; window.speechSynthesis.speak(u);
+                }
+                this.log(`IA: ${carbs}g -> Bolus ${bolus}U`);
+            },
+            voice: function() {
+                const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if(!Rec) { this.toggleKbd(); return; }
+                const r = new Rec(); r.lang = 'fr-FR';
+                r.onstart = () => { document.getElementById("ai-msg").innerText = "Écoute..."; };
+                r.onresult = (e) => window.py_ai(e.results[0][0].transcript);
+                r.start();
+            },
+            toggleKbd: function() {
+                const z = document.getElementById("kbd-zone");
+                z.style.display = z.style.display === "block" ? "none" : "block";
+                if(z.style.display === "block") document.getElementById("kbd-in").focus();
+            },
+            checkEnter: function(e) { if(e.key === 'Enter') { window.py_ai(e.target.value); e.target.value=""; this.toggleKbd(); } },
+            vision: async function() {
+                const box = document.getElementById("cam-box");
+                box.style.display = "block";
+                const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+                const v = document.createElement("video");
+                v.srcObject = s; v.setAttribute("playsinline", true); v.play();
+                box.innerHTML = ""; box.appendChild(v);
+                setTimeout(() => {
+                    const c = document.createElement("canvas");
+                    c.width = 800; c.height = 600;
+                    c.getContext('2d').drawImage(v,0,0,800,600);
+                    s.getTracks().forEach(t => t.stop());
+                    box.style.display = "none";
+                    window.py_ai(null, c.toDataURL("image/jpeg", 0.6).split(',')[1]);
+                }, 3000);
+            },
+            scan: function() {
+                const box = document.getElementById("cam-box");
+                box.style.display = "block";
+                Quagga.init({inputStream:{target:box, type:"LiveStream"}, decoder:{readers:["ean_reader"]}}, (err) => { if(!err) Quagga.start(); });
+                Quagga.onDetected(d => {
+                    Quagga.stop(); box.style.display = "none";
+                    fetch(`https://world.openfoodfacts.org/api/v0/product/${d.codeResult.code}.json`)
+                        .then(r => r.json()).then(j => { if(j.product) window.py_ai(`Scanné: ${j.product.product_name} (${j.product.nutriments.carbohydrates_100g}g/100g)`); });
+                });
+            },
+            connectBT: async function() {
+                if(!navigator.bluetooth) { this.simulate(); return; }
+                try {
+                    const d = await navigator.bluetooth.requestDevice({filters:[{services:['glucose']}]});
+                    await d.gatt.connect();
+                    document.getElementById("st-bt").className = "led on";
+                } catch { this.simulate(); }
+            },
+            simulate: function() {
+                const val = 110 + Math.floor(Math.random()*40);
+                this.state.gly = val;
+                document.getElementById("disp-gly").innerText = val;
+                this.updateChart(val);
+            },
+            initChart: function() {
+                this.state.chart = new Chart(document.getElementById('chart'), {
+                    type:'line', data:{labels:[1,2,3,4,5], datasets:[{data:[110,110,110,110,110], borderColor:'#00f2ff', tension:0.4, fill:true, backgroundColor:'rgba(0,242,255,0.1)', pointRadius:0}]},
+                    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:false}, scales:{x:{display:false}, y:{display:false, min:40, max:300}}}
+                });
+            },
+            updateChart: function(v) {
+                this.state.chart.data.datasets[0].data.shift();
+                this.state.chart.data.datasets[0].data.push(v);
+                this.state.chart.update();
+            },
+            log: function(m) {
+                const el = document.createElement("div");
+                el.style.padding = "10px"; el.style.borderBottom = "1px solid #333";
+                el.innerHTML = `<small style="color:#555">${new Date().toLocaleTimeString()}</small><br>${m}`;
+                document.getElementById("log-list").prepend(el);
+            },
+            saveConfig: function() {
+                localStorage.setItem("isf", document.getElementById("c-isf").value);
+                localStorage.setItem("ratio", document.getElementById("c-ratio").value);
+                localStorage.setItem("mk", document.getElementById("c-key").value);
+                document.getElementById("st-ai").className = "led on";
+                alert("Sauvegardé");
+            },
+            toast: function(m) { alert(m); }
+        };
+        window.onload = () => core.init();
+        window.core = core;
+    </script>
+</body>
+</html>
